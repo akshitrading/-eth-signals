@@ -41,7 +41,6 @@
     });
 
     const candleSeries = chart.addCandlestickSeries();
-    let lastSignal = null;
 
     async function fetchData() {
       const res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=5m&limit=500");
@@ -110,6 +109,15 @@
       return histogram;
     }
 
+    function isTrendConfirmed(data, index, type = 'up', length = 20) {
+      for (let i = 1; i <= length; i++) {
+        if (index + i >= data.length) return false;
+        const change = data[index + i].close - data[index + i - 1].close;
+        if ((type === 'up' && change < 0) || (type === 'down' && change > 0)) return false;
+      }
+      return true;
+    }
+
     function plotSignals(data) {
       const closes = data.map(d => d.close);
       const ema9 = calculateEMA(closes, 9);
@@ -119,24 +127,21 @@
 
       const markers = [];
 
-      for (let i = 30; i < data.length - 1; i++) {
-        const next = data[i + 1];
-
+      for (let i = 30; i < data.length - 21; i++) {
         if (
           ema9[i] > ema21[i] &&
           ema9[i - 1] <= ema21[i - 1] &&
           rsi[i] < 70 &&
           macdHist[i] > 0 &&
-          lastSignal !== 'buy'
+          isTrendConfirmed(data, i, 'up', 20)
         ) {
           markers.push({
-            time: next.time,
+            time: data[i].time,
             position: 'belowBar',
             color: 'lime',
             shape: 'arrowUp',
             text: 'Buy Confirmed'
           });
-          lastSignal = 'buy';
         }
 
         if (
@@ -144,16 +149,15 @@
           ema9[i - 1] >= ema21[i - 1] &&
           rsi[i] > 30 &&
           macdHist[i] < 0 &&
-          lastSignal !== 'sell'
+          isTrendConfirmed(data, i, 'down', 20)
         ) {
           markers.push({
-            time: next.time,
+            time: data[i].time,
             position: 'aboveBar',
             color: 'red',
             shape: 'arrowDown',
             text: 'Sell Confirmed'
           });
-          lastSignal = 'sell';
         }
       }
 
