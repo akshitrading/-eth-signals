@@ -22,7 +22,6 @@
 <body>
   <h1>ETH Buy/Sell Signals - 5 Minute Chart</h1>
   <div id="chart"></div>
-  <audio id="alertSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
 
   <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
 
@@ -136,7 +135,6 @@
             text: 'Buy Confirmed'
           });
           lastSignal = 'buy';
-          showAlert('BUY Signal!');
         }
 
         if (
@@ -154,16 +152,10 @@
             text: 'Sell Confirmed'
           });
           lastSignal = 'sell';
-          showAlert('SELL Signal!');
         }
       }
 
       candleSeries.setMarkers(markers);
-    }
-
-    function showAlert(message) {
-      alert(message);
-      document.getElementById("alertSound").play();
     }
 
     fetchData();
