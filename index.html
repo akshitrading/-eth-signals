@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>ETH Chart with Buy/Sell Signals</title>
+    <title>ETH Trend Signal Chart</title>
     <meta charset="UTF-8" />
     <style>
       body {
@@ -15,12 +15,11 @@
       #chart {
         width: 100%;
         height: 600px;
-        margin: 0 auto;
       }
     </style>
   </head>
   <body>
-    <h1>ETH Live Chart with Buy/Sell Signals</h1>
+    <h1>ETH Trend Start Buy/Sell Signals</h1>
     <div id="chart"></div>
 
     <!-- Charting Library -->
@@ -44,68 +43,69 @@
       const candleSeries = chart.addCandlestickSeries();
 
       async function fetchData() {
-        const res = await fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1m&limit=100');
-        const data = await res.json();
+        const res = await fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1m&limit=200');
+        const raw = await res.json();
 
-        const chartData = data.map(d => ({
+        const candles = raw.map(d => ({
           time: d[0] / 1000,
-          open: parseFloat(d[1]),
-          high: parseFloat(d[2]),
-          low: parseFloat(d[3]),
-          close: parseFloat(d[4])
+          open: +d[1],
+          high: +d[2],
+          low: +d[3],
+          close: +d[4],
         }));
 
-        candleSeries.setData(chartData);
-        plotSignals(chartData);
+        candleSeries.setData(candles);
+        plotTrendSignals(candles);
       }
 
-      function plotSignals(data) {
+      function calculateEMA(data, period) {
+        const k = 2 / (period + 1);
+        let emaArray = [];
+        let ema = data[0];
+
+        for (let i = 0; i < data.length; i++) {
+          ema = data[i] * k + ema * (1 - k);
+          emaArray.push(ema);
+        }
+
+        return emaArray;
+      }
+
+      function plotTrendSignals(data) {
+        const closes = data.map(d => d.close);
+        const emaShort = calculateEMA(closes, 5);
+        const emaLong = calculateEMA(closes, 20);
+
         const markers = [];
+        let lastSignal = null;
 
-        for (let i = 14; i < data.length; i++) {
-          const closes = data.slice(i - 14, i).map(d => d.close);
-          const avg = closes.reduce((a, b) => a + b) / closes.length;
-          const rsi = 100 - (100 / (1 + (closes[closes.length - 1] / avg)));
-
-          const emaShort = getEMA(data, i, 5);
-          const emaLong = getEMA(data, i, 10);
-
-          if (emaShort > emaLong && rsi < 70) {
+        for (let i = 20; i < data.length; i++) {
+          if (emaShort[i] > emaLong[i] && lastSignal !== 'buy') {
             markers.push({
               time: data[i].time,
               position: 'belowBar',
               color: 'lime',
               shape: 'arrowUp',
-              text: 'Buy'
+              text: 'Buy Start'
             });
-          } else if (emaShort < emaLong && rsi > 30) {
+            lastSignal = 'buy';
+          } else if (emaShort[i] < emaLong[i] && lastSignal !== 'sell') {
             markers.push({
               time: data[i].time,
               position: 'aboveBar',
               color: 'red',
               shape: 'arrowDown',
-              text: 'Sell'
+              text: 'Sell Start'
             });
+            lastSignal = 'sell';
           }
         }
 
         candleSeries.setMarkers(markers);
       }
 
-      function getEMA(data, index, period) {
-        const prices = data.slice(index - period, index).map(d => d.close);
-        const k = 2 / (period + 1);
-        let ema = prices[0];
-
-        for (let i = 1; i < prices.length; i++) {
-          ema = prices[i] * k + ema * (1 - k);
-        }
-
-        return ema;
-      }
-
       fetchData();
-      setInterval(fetchData, 60000); // update every 60 seconds
+      setInterval(fetchData, 60000); // update every 1 minute
     </script>
   </body>
 </html>
