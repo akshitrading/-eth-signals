@@ -119,7 +119,9 @@
 
       const markers = [];
 
-      for (let i = 30; i < data.length; i++) {
+      for (let i = 30; i < data.length - 1; i++) {
+        const next = data[i + 1];
+
         if (
           ema9[i] > ema21[i] &&
           ema9[i - 1] <= ema21[i - 1] &&
@@ -128,7 +130,7 @@
           lastSignal !== 'buy'
         ) {
           markers.push({
-            time: data[i].time,
+            time: next.time,
             position: 'belowBar',
             color: 'lime',
             shape: 'arrowUp',
@@ -145,7 +147,7 @@
           lastSignal !== 'sell'
         ) {
           markers.push({
-            time: data[i].time,
+            time: next.time,
             position: 'aboveBar',
             color: 'red',
             shape: 'arrowDown',
