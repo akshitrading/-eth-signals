@@ -1,111 +1,173 @@
 
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>ETH Trend Signal Chart</title>
-    <meta charset="UTF-8" />
-    <style>
-      body {
-        margin: 0;
-        background: #111;
-        color: white;
-        font-family: Arial;
-        text-align: center;
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ETH Buy/Sell Signals - 5m Chart</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    #chart {
+      width: 100%;
+      height: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ETH Buy/Sell Signals - 5 Minute Chart</h1>
+  <div id="chart"></div>
+  <audio id="alertSound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+
+  <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById("chart"), {
+      width: window.innerWidth,
+      height: 600,
+      layout: {
+        background: { color: '#111' },
+        textColor: '#fff',
+      },
+      grid: {
+        vertLines: { color: '#333' },
+        horzLines: { color: '#333' },
+      },
+      timeScale: { timeVisible: true, secondsVisible: false },
+    });
+
+    const candleSeries = chart.addCandlestickSeries();
+    let lastSignal = null;
+
+    async function fetchData() {
+      const res = await fetch("https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=5m&limit=500");
+      const raw = await res.json();
+
+      const candles = raw.map(d => ({
+        time: d[0] / 1000,
+        open: +d[1],
+        high: +d[2],
+        low: +d[3],
+        close: +d[4],
+      }));
+
+      candleSeries.setData(candles);
+      plotSignals(candles);
+    }
+
+    function calculateEMA(prices, period) {
+      const k = 2 / (period + 1);
+      let ema = prices[0];
+      let result = [ema];
+
+      for (let i = 1; i < prices.length; i++) {
+        ema = prices[i] * k + ema * (1 - k);
+        result.push(ema);
       }
-      #chart {
-        width: 100%;
-        height: 600px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>ETH Trend Start Buy/Sell Signals</h1>
-    <div id="chart"></div>
+      return result;
+    }
 
-    <!-- Charting Library -->
-    <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+    function calculateRSI(closes, period = 14) {
+      let gains = 0;
+      let losses = 0;
 
-    <script>
-      const chart = LightweightCharts.createChart(document.getElementById('chart'), {
-        width: window.innerWidth,
-        height: 600,
-        layout: {
-          background: { color: '#111' },
-          textColor: '#fff',
-        },
-        grid: {
-          vertLines: { color: '#333' },
-          horzLines: { color: '#333' },
-        },
-        timeScale: { timeVisible: true, secondsVisible: false },
-      });
-
-      const candleSeries = chart.addCandlestickSeries();
-
-      async function fetchData() {
-        const res = await fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1m&limit=200');
-        const raw = await res.json();
-
-        const candles = raw.map(d => ({
-          time: d[0] / 1000,
-          open: +d[1],
-          high: +d[2],
-          low: +d[3],
-          close: +d[4],
-        }));
-
-        candleSeries.setData(candles);
-        plotTrendSignals(candles);
+      for (let i = 1; i <= period; i++) {
+        const change = closes[i] - closes[i - 1];
+        if (change >= 0) gains += change;
+        else losses -= change;
       }
 
-      function calculateEMA(data, period) {
-        const k = 2 / (period + 1);
-        let emaArray = [];
-        let ema = data[0];
+      let rs = gains / losses;
+      let rsi = [100 - 100 / (1 + rs)];
 
-        for (let i = 0; i < data.length; i++) {
-          ema = data[i] * k + ema * (1 - k);
-          emaArray.push(ema);
+      for (let i = period + 1; i < closes.length; i++) {
+        const change = closes[i] - closes[i - 1];
+        if (change >= 0) {
+          gains = (gains * (period - 1) + change) / period;
+          losses = (losses * (period - 1)) / period;
+        } else {
+          gains = (gains * (period - 1)) / period;
+          losses = (losses * (period - 1) - change) / period;
+        }
+        rs = gains / (losses || 1);
+        rsi.push(100 - 100 / (1 + rs));
+      }
+
+      while (rsi.length < closes.length) rsi.unshift(null);
+      return rsi;
+    }
+
+    function calculateMACD(prices, shortPeriod = 12, longPeriod = 26, signalPeriod = 9) {
+      const shortEMA = calculateEMA(prices, shortPeriod);
+      const longEMA = calculateEMA(prices, longPeriod);
+      const macdLine = shortEMA.map((val, i) => val - longEMA[i]);
+      const signalLine = calculateEMA(macdLine.slice(longPeriod), signalPeriod);
+      const histogram = macdLine.map((val, i) => i >= longPeriod ? val - signalLine[i - longPeriod] : null);
+      return histogram;
+    }
+
+    function plotSignals(data) {
+      const closes = data.map(d => d.close);
+      const ema9 = calculateEMA(closes, 9);
+      const ema21 = calculateEMA(closes, 21);
+      const rsi = calculateRSI(closes);
+      const macdHist = calculateMACD(closes);
+
+      const markers = [];
+
+      for (let i = 30; i < data.length; i++) {
+        if (
+          ema9[i] > ema21[i] &&
+          ema9[i - 1] <= ema21[i - 1] &&
+          rsi[i] < 70 &&
+          macdHist[i] > 0 &&
+          lastSignal !== 'buy'
+        ) {
+          markers.push({
+            time: data[i].time,
+            position: 'belowBar',
+            color: 'lime',
+            shape: 'arrowUp',
+            text: 'Buy Confirmed'
+          });
+          lastSignal = 'buy';
+          showAlert('BUY Signal!');
         }
 
-        return emaArray;
-      }
-
-      function plotTrendSignals(data) {
-        const closes = data.map(d => d.close);
-        const emaShort = calculateEMA(closes, 5);
-        const emaLong = calculateEMA(closes, 20);
-
-        const markers = [];
-        let lastSignal = null;
-
-        for (let i = 20; i < data.length; i++) {
-          if (emaShort[i] > emaLong[i] && lastSignal !== 'buy') {
-            markers.push({
-              time: data[i].time,
-              position: 'belowBar',
-              color: 'lime',
-              shape: 'arrowUp',
-              text: 'Buy Start'
-            });
-            lastSignal = 'buy';
-          } else if (emaShort[i] < emaLong[i] && lastSignal !== 'sell') {
-            markers.push({
-              time: data[i].time,
-              position: 'aboveBar',
-              color: 'red',
-              shape: 'arrowDown',
-              text: 'Sell Start'
-            });
-            lastSignal = 'sell';
-          }
+        if (
+          ema9[i] < ema21[i] &&
+          ema9[i - 1] >= ema21[i - 1] &&
+          rsi[i] > 30 &&
+          macdHist[i] < 0 &&
+          lastSignal !== 'sell'
+        ) {
+          markers.push({
+            time: data[i].time,
+            position: 'aboveBar',
+            color: 'red',
+            shape: 'arrowDown',
+            text: 'Sell Confirmed'
+          });
+          lastSignal = 'sell';
+          showAlert('SELL Signal!');
         }
-
-        candleSeries.setMarkers(markers);
       }
 
-      fetchData();
-      setInterval(fetchData, 60000); // update every 1 minute
-    </script>
-  </body>
+      candleSeries.setMarkers(markers);
+    }
+
+    function showAlert(message) {
+      alert(message);
+      document.getElementById("alertSound").play();
+    }
+
+    fetchData();
+    setInterval(fetchData, 300000); // refresh every 5 minutes
+  </script>
+</body>
 </html>
