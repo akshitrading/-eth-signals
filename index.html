@@ -109,13 +109,18 @@
       return histogram;
     }
 
-    function isTrendConfirmed(data, index, type = 'up', length = 20) {
+    function isTrendConfirmed(data, index, type = 'up', length = 7, threshold = 0.8) {
+      let followCount = 0;
+
       for (let i = 1; i <= length; i++) {
         if (index + i >= data.length) return false;
         const change = data[index + i].close - data[index + i - 1].close;
-        if ((type === 'up' && change < 0) || (type === 'down' && change > 0)) return false;
+        if ((type === 'up' && change > 0) || (type === 'down' && change < 0)) {
+          followCount++;
+        }
       }
-      return true;
+
+      return (followCount / length) >= threshold;
     }
 
     function plotSignals(data) {
@@ -133,7 +138,7 @@
           ema9[i - 1] <= ema21[i - 1] &&
           rsi[i] < 70 &&
           macdHist[i] > 0 &&
-          isTrendConfirmed(data, i, 'up', 20)
+          isTrendConfirmed(data, i, 'up', 7)
         ) {
           markers.push({
             time: data[i].time,
@@ -149,7 +154,7 @@
           ema9[i - 1] >= ema21[i - 1] &&
           rsi[i] > 30 &&
           macdHist[i] < 0 &&
-          isTrendConfirmed(data, i, 'down', 20)
+          isTrendConfirmed(data, i, 'down', 7)
         ) {
           markers.push({
             time: data[i].time,
@@ -168,4 +173,4 @@
     setInterval(fetchData, 300000); // refresh every 5 minutes
   </script>
 </body>
-</html
+</html>
