@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,11 +48,11 @@
       const raw = await res.json();
 
       const candles = raw.map(d => ({
-        time: d[0] / 1000,
-        open: +d[1],
-        high: +d[2],
-        low: +d[3],
-        close: +d[4],
+        time: Math.floor(d[0] / 1000),
+        open: parseFloat(d[1]),
+        high: parseFloat(d[2]),
+        low: parseFloat(d[3]),
+        close: parseFloat(d[4]),
       }));
 
       candleSeries.setData(candles);
@@ -110,23 +111,19 @@
     }
 
     function isTrendConfirmed(data, index, type = 'up', length = 3, threshold = 0.6) {
-  let followCount = 0;
-  let available = 0;
+      let followCount = 0;
+      let available = 0;
 
-  for (let i = 1; i <= length; i++) {
-    if (index + i >= data.length) break;
-    const change = data[index + i].close - data[index + i - 1].close;
-    available++;
-    if ((type === 'up' && change > 0) || (type === 'down' && change < 0)) {
-      followCount++;
-    }
-  }
-
-  return available >= length && (followCount / available) >= threshold;
-}
+      for (let i = 1; i <= length; i++) {
+        if (index + i >= data.length) break;
+        const change = data[index + i].close - data[index + i - 1].close;
+        available++;
+        if ((type === 'up' && change > 0) || (type === 'down' && change < 0)) {
+          followCount++;
+        }
       }
 
-      return (followCount / length) >= threshold;
+      return available >= length && (followCount / available) >= threshold;
     }
 
     function plotSignals(data) {
@@ -144,7 +141,7 @@
           ema9[i - 1] <= ema21[i - 1] &&
           rsi[i] < 75 &&
           macdHist[i] > 0 &&
-          isTrendConfirmed(data, i, 'up', 5)
+          isTrendConfirmed(data, i, 'up', 3)
         ) {
           markers.push({
             time: data[i].time,
@@ -160,7 +157,7 @@
           ema9[i - 1] >= ema21[i - 1] &&
           rsi[i] > 25 &&
           macdHist[i] < 0 &&
-          isTrendConfirmed(data, i, 'down', 5)
+          isTrendConfirmed(data, i, 'down', 3)
         ) {
           markers.push({
             time: data[i].time,
@@ -180,4 +177,3 @@
   </script>
 </body>
 </html>
-
