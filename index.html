@@ -1,5 +1,4 @@
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,7 +80,7 @@
         else losses -= change;
       }
 
-      let rs = gains / losses;
+      let rs = gains / (losses || 1);
       let rsi = [100 - 100 / (1 + rs)];
 
       for (let i = period + 1; i < closes.length; i++) {
@@ -110,15 +109,21 @@
       return histogram;
     }
 
-    function isTrendConfirmed(data, index, type = 'up', length = 7, threshold = 0.8) {
-      let followCount = 0;
+    function isTrendConfirmed(data, index, type = 'up', length = 3, threshold = 0.6) {
+  let followCount = 0;
+  let available = 0;
 
-      for (let i = 1; i <= length; i++) {
-        if (index + i >= data.length) return false;
-        const change = data[index + i].close - data[index + i - 1].close;
-        if ((type === 'up' && change > 0) || (type === 'down' && change < 0)) {
-          followCount++;
-        }
+  for (let i = 1; i <= length; i++) {
+    if (index + i >= data.length) break;
+    const change = data[index + i].close - data[index + i - 1].close;
+    available++;
+    if ((type === 'up' && change > 0) || (type === 'down' && change < 0)) {
+      followCount++;
+    }
+  }
+
+  return available >= length && (followCount / available) >= threshold;
+}
       }
 
       return (followCount / length) >= threshold;
@@ -137,9 +142,9 @@
         if (
           ema9[i] > ema21[i] &&
           ema9[i - 1] <= ema21[i - 1] &&
-          rsi[i] < 70 &&
+          rsi[i] < 75 &&
           macdHist[i] > 0 &&
-          isTrendConfirmed(data, i, 'up', 7)
+          isTrendConfirmed(data, i, 'up', 5)
         ) {
           markers.push({
             time: data[i].time,
@@ -153,9 +158,9 @@
         if (
           ema9[i] < ema21[i] &&
           ema9[i - 1] >= ema21[i - 1] &&
-          rsi[i] > 30 &&
+          rsi[i] > 25 &&
           macdHist[i] < 0 &&
-          isTrendConfirmed(data, i, 'down', 7)
+          isTrendConfirmed(data, i, 'down', 5)
         ) {
           markers.push({
             time: data[i].time,
@@ -175,3 +180,4 @@
   </script>
 </body>
 </html>
+
